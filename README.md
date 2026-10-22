@@ -25,7 +25,6 @@ Official USAF Physical Fitness Assessment (PFA) tracking, live check-ins, and sc
   - Direct Airman check-in submitted to the live squadron roster.
 
 - **PT Leader Dashboard (`/ptl`)**:
-  - PIN gate (`391234` or custom `VITE_PTL_PIN`).
   - Real-time dynamic QR code modal powered by `qrcode.react` that auto-refreshes `?t=` every 10 seconds.
   - Live check-in feed polling Google Apps Script every 10 seconds.
   - Manual Airman roster entry form.
