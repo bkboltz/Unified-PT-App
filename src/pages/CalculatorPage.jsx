@@ -600,15 +600,7 @@ export default function CalculatorPage() {
             </Link>
           </div>
           <p className="text-[11px] text-gray-400 dark:text-slate-500">
-            Created &amp; Designed by <span className="font-medium text-gray-500 dark:text-slate-400">Brandon Boltz</span> •{' '}
-            <a
-              href="https://github.com/bkboltz/Unified-PT-App"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-            >
-              github.com/bkboltz/Unified-PT-App
-            </a>
+            Created &amp; Designed by <span className="font-medium text-gray-500 dark:text-slate-400">TSgt Brandon Boltz</span>
           </p>
         </div>
       </div>
