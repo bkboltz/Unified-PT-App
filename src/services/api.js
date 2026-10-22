@@ -61,46 +61,76 @@ export async function submitCheckIn({ rank, firstName, lastName, method = 'QR Sc
 }
 
 /**
- * Fetches active check-ins for today from the Google Sheet.
+ * Formats a Date object as a local YYYY-MM-DD string.
+ */
+export function toLocalDateKey(dateInput) {
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Fetches check-ins from the Google Sheet (both today's and full history).
  */
 export async function fetchLiveCheckIns() {
   try {
     const res = await fetch(`${APPS_SCRIPT_URL}?type=checkins`);
     const data = await res.json();
     if (Array.isArray(data)) {
-      const normalized = data.map(item => {
-        // Shifted format: item.Rank contains a date string
-        const isShifted = item.Rank && !isNaN(Date.parse(item.Rank));
-        if (isShifted) {
+      const normalized = data
+        .map((item) => {
+          const explicitTime =
+            item['Date/Time'] || item.Timestamp || item.timestamp || item.dateTime || '';
+
+          // Shifted format fallback: item.Rank contains a date string when Date/Time header was missing
+          const isShifted = !explicitTime && item.Rank && !isNaN(Date.parse(item.Rank));
+          if (isShifted) {
+            const ts = item.Rank;
+            return {
+              timestamp: ts,
+              dateKey: toLocalDateKey(ts),
+              rank: String(item['First Name'] || '').trim(),
+              firstName: String(item['Last Name'] || '').trim(),
+              lastName: String(item['Check-in Method'] || '').trim(),
+              method: String(item[''] || item.method || 'QR Scan').trim()
+            };
+          }
+
+          const ts = explicitTime;
           return {
-            timestamp: item.Rank,
-            rank: item['First Name'] || '',
-            firstName: item['Last Name'] || '',
-            lastName: item['Check-in Method'] || '',
-            method: item[''] || item.method || 'QR Scan'
+            timestamp: ts,
+            dateKey: toLocalDateKey(ts),
+            rank: String(item.Rank || item.rank || '').trim(),
+            firstName: String(item['First Name'] || item.firstName || '').trim(),
+            lastName: String(item['Last Name'] || item.lastName || '').trim(),
+            method: String(item['Check-in Method'] || item.method || 'QR Scan').trim()
           };
-        }
+        })
+        .filter((item) => item.timestamp && item.dateKey && (item.lastName || item.firstName));
 
-        // Corrected or standard format
-        return {
-          timestamp: item.Timestamp || item.timestamp || item.Rank || '',
-          rank: item.Rank || item.rank || '',
-          firstName: item['First Name'] || item.firstName || '',
-          lastName: item['Last Name'] || item.lastName || '',
-          method: item['Check-in Method'] || item.method || 'QR Scan'
-        };
-      });
+      const todayKey = toLocalDateKey(new Date());
+      const allReversed = [...normalized].reverse();
+      const todayFiltered = allReversed.filter((item) => item.dateKey === todayKey);
 
-      const todayStr = new Date().toLocaleDateString();
-      const filtered = normalized.filter(item => {
-        if (!item.timestamp) return false;
-        return new Date(item.timestamp).toLocaleDateString() === todayStr;
-      });
-      return { success: true, data: filtered.reverse() };
+      return {
+        success: true,
+        data: todayFiltered,
+        allCheckIns: allReversed,
+        todayKey
+      };
     }
-    return { success: true, data: [] };
+    return { success: true, data: [], allCheckIns: [], todayKey: toLocalDateKey(new Date()) };
   } catch (err) {
     console.error('Error fetching live check-ins:', err);
-    return { success: false, error: err, data: [] };
+    return {
+      success: false,
+      error: err,
+      data: [],
+      allCheckIns: [],
+      todayKey: toLocalDateKey(new Date())
+    };
   }
 }

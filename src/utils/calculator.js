@@ -183,10 +183,47 @@ export function calculateCoreScore(type, gender, age, value) {
 /**
  * Calculates composite score and determines USAF pass/fail status.
  * DAFMAN 36-2905 Para 3.1 & 3.7.1: Body Composition does not have a minimum component requirement.
+ * When one or more components are exempt (AF Form 469), composite score is scaled:
+ *   Composite Score = (Total Points Earned / Total Possible Points of Non-Exempt Components) * 100
  */
-export function calculateCompositeScore({ whtr = 0, cardio = 0, upper = 0, core = 0 }) {
-  const total = Number((whtr + cardio + upper + core).toFixed(1));
-  const hasZeroComponent = cardio === 0 || upper === 0 || core === 0;
+export function calculateCompositeScore(
+  { whtr = 0, cardio = 0, upper = 0, core = 0 },
+  exemptions = { whtr: false, cardio: false, upper: false, core: false }
+) {
+  const maxWeights = { whtr: 20, cardio: 50, upper: 15, core: 15 };
+  const rawScores = { whtr, cardio, upper, core };
+
+  let earnedPoints = 0;
+  let possiblePoints = 0;
+
+  for (const key of ['whtr', 'cardio', 'upper', 'core']) {
+    if (!exemptions[key]) {
+      earnedPoints += Number(rawScores[key] || 0);
+      possiblePoints += maxWeights[key];
+    }
+  }
+
+  if (possiblePoints === 0) {
+    return {
+      whtr: 'Exempt',
+      cardio: 'Exempt',
+      upper: 'Exempt',
+      core: 'Exempt',
+      earnedPoints: 0,
+      possiblePoints: 0,
+      total: 'Exempt',
+      passed: true,
+      isFullExempt: true,
+      hasZeroComponent: false,
+      statusText: 'Composite Exemption (All Components Exempt)'
+    };
+  }
+
+  const total = Number(((earnedPoints / possiblePoints) * 100).toFixed(1));
+  const hasZeroComponent =
+    (!exemptions.cardio && cardio === 0) ||
+    (!exemptions.upper && upper === 0) ||
+    (!exemptions.core && core === 0);
   const passed = total >= 75 && !hasZeroComponent;
 
   let statusText = 'Passing Score';
@@ -199,12 +236,15 @@ export function calculateCompositeScore({ whtr = 0, cardio = 0, upper = 0, core 
   }
 
   return {
-    whtr,
-    cardio,
-    upper,
-    core,
+    whtr: exemptions.whtr ? 'Exempt' : whtr,
+    cardio: exemptions.cardio ? 'Exempt' : cardio,
+    upper: exemptions.upper ? 'Exempt' : upper,
+    core: exemptions.core ? 'Exempt' : core,
+    earnedPoints: Number(earnedPoints.toFixed(1)),
+    possiblePoints,
     total,
     passed,
+    isFullExempt: false,
     hasZeroComponent,
     statusText
   };
