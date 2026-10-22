@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   calculateWhtr,
+  calculateWhtrDetails,
   calculateCardioScore,
+  evaluateWalk,
+  getComponentMinimum,
   calculateUpperScore,
   calculateCoreScore,
   calculateCompositeScore,
@@ -39,6 +42,9 @@ export default function CalculatorPage() {
 
   const [scores, setScores] = useState({
     whtr: 0,
+    whtrRatio: null,
+    whtrRisk: null,
+    roundedWaist: null,
     cardio: 0,
     upper: 0,
     core: 0,
@@ -62,7 +68,7 @@ export default function CalculatorPage() {
   };
 
   const handleCardioInputChange = (val) => {
-    if (cardioType === 'run') {
+    if (cardioType === 'run' || cardioType === 'walk') {
       setCardioInput(formatTimeInput(val));
     } else {
       setCardioInput(val);
@@ -82,10 +88,20 @@ export default function CalculatorPage() {
     const totalHeight = parseInt(heightFeet || 0, 10) * 12 + parseFloat(heightInches || 0);
     const waistInches = parseFloat(waist || 0);
 
-    const whtrScore = exemptions.whtr ? 0 : calculateWhtr(totalHeight, waistInches);
-    const cardioScore = exemptions.cardio
-      ? 0
-      : calculateCardioScore(cardioType, gender, age, cardioInput);
+    const whtrDetails = exemptions.whtr
+      ? { points: 0, ratioFormatted: null, risk: null, roundedWaist: 0 }
+      : calculateWhtrDetails(totalHeight, waistInches);
+    const whtrScore = whtrDetails.points;
+
+    const walkResult =
+      !exemptions.cardio && cardioType === 'walk'
+        ? evaluateWalk(gender, age, cardioInput)
+        : null;
+
+    const cardioScore =
+      exemptions.cardio || cardioType === 'walk'
+        ? 0
+        : calculateCardioScore(cardioType, gender, age, cardioInput);
     const upperScore = exemptions.upper
       ? 0
       : calculateUpperScore(upperType, gender, age, upperInput);
@@ -94,11 +110,23 @@ export default function CalculatorPage() {
       : calculateCoreScore(coreType, gender, age, coreInput);
 
     const composite = calculateCompositeScore(
-      { whtr: whtrScore, cardio: cardioScore, upper: upperScore, core: coreScore },
+      {
+        whtr: whtrScore,
+        cardio: cardioScore,
+        upper: upperScore,
+        core: coreScore,
+        cardioType,
+        walkPassed: walkResult ? walkResult.passed : null
+      },
       exemptions
     );
 
-    setScores(composite);
+    setScores({
+      ...composite,
+      whtrRatio: whtrDetails.ratioFormatted,
+      whtrRisk: whtrDetails.risk,
+      roundedWaist: whtrDetails.roundedWaist
+    });
     setHasCalculated(true);
   };
 
@@ -109,6 +137,7 @@ export default function CalculatorPage() {
     const activityNames = {
       run: '2-Mile Run',
       hamr: 'HAMR',
+      walk: '2.0km Walk',
       pushups: 'Standard Push-ups',
       hrPushups: 'HR Push-ups',
       situps: 'Standard Sit-ups',
@@ -287,7 +316,7 @@ export default function CalculatorPage() {
                     <label className={labelStyle}>Inches</label>
                     <input
                       type="number"
-                      step="0.5"
+                      step="any"
                       inputMode="decimal"
                       value={heightInches}
                       onChange={(e) => setHeightInches(e.target.value)}
@@ -300,7 +329,7 @@ export default function CalculatorPage() {
                     <label className={labelStyle}>Waist (inches)</label>
                     <input
                       type="number"
-                      step="0.5"
+                      step="any"
                       inputMode="decimal"
                       value={waist}
                       onChange={(e) => setWaist(e.target.value)}
@@ -351,13 +380,14 @@ export default function CalculatorPage() {
                       >
                         <option value="run">2-Mile Run</option>
                         <option value="hamr">20-Meter HAMR</option>
+                        <option value="walk">2.0 km Walk (Profile)</option>
                       </select>
                       <input
-                        type={cardioType === 'run' ? 'text' : 'number'}
-                        inputMode={cardioType === 'run' ? 'numeric' : 'decimal'}
+                        type={cardioType === 'run' || cardioType === 'walk' ? 'text' : 'number'}
+                        inputMode={cardioType === 'run' || cardioType === 'walk' ? 'numeric' : 'decimal'}
                         value={cardioInput}
                         onChange={(e) => handleCardioInputChange(e.target.value)}
-                        placeholder={cardioType === 'run' ? 'MM:SS' : 'Total Shuttles'}
+                        placeholder={cardioType === 'run' || cardioType === 'walk' ? 'MM:SS' : 'Total Shuttles'}
                         className={inputStyle}
                         required={!exemptions.cardio}
                       />
@@ -482,7 +512,17 @@ export default function CalculatorPage() {
               </h3>
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-slate-600/50">
-                  <span className="text-gray-600 dark:text-gray-300">Body Composition</span>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-300">Body Composition</span>
+                    {scores.whtr !== 'Exempt' && scores.whtrRatio && (
+                      <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                        WHtR: <span className="font-semibold">{scores.whtrRatio}</span> ({scores.whtrRisk})
+                        {scores.roundedWaist && parseFloat(waist) !== scores.roundedWaist && (
+                          <span> • Waist rounded down to {scores.roundedWaist}&quot;</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   {scores.whtr === 'Exempt' ? (
                     <span className="text-sm font-semibold text-gray-500 dark:text-slate-400">
                       Exempt
@@ -495,11 +535,29 @@ export default function CalculatorPage() {
                 </div>
 
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-slate-600/50">
-                  <span className="text-gray-600 dark:text-gray-300">Cardio</span>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-300">Cardio</span>
+                    {scores.cardio !== 'Exempt' &&
+                      (scores.cardio === 0 || scores.cardio === 'Fail (Walk)') && (
+                        <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                          Standard: {getComponentMinimum(cardioType, gender, age)}
+                        </div>
+                      )}
+                  </div>
                   {scores.cardio === 'Exempt' ? (
                     <span className="text-sm font-semibold text-gray-500 dark:text-slate-400">
                       Exempt
                     </span>
+                  ) : scores.cardio === 'Pass (Walk)' || scores.cardio === 'Fail (Walk)' ? (
+                    <strong
+                      className={
+                        scores.cardio === 'Fail (Walk)'
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-green-600 dark:text-green-400'
+                      }
+                    >
+                      {scores.cardio}
+                    </strong>
                   ) : (
                     <strong
                       className={
@@ -515,7 +573,14 @@ export default function CalculatorPage() {
                 </div>
 
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-slate-600/50">
-                  <span className="text-gray-600 dark:text-gray-300">Upper Body</span>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-300">Upper Body</span>
+                    {scores.upper !== 'Exempt' && scores.upper === 0 && (
+                      <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                        Standard: {getComponentMinimum(upperType, gender, age)}
+                      </div>
+                    )}
+                  </div>
                   {scores.upper === 'Exempt' ? (
                     <span className="text-sm font-semibold text-gray-500 dark:text-slate-400">
                       Exempt
@@ -535,7 +600,14 @@ export default function CalculatorPage() {
                 </div>
 
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-slate-600/50">
-                  <span className="text-gray-600 dark:text-gray-300">Core</span>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-300">Core</span>
+                    {scores.core !== 'Exempt' && scores.core === 0 && (
+                      <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                        Standard: {getComponentMinimum(coreType, gender, age)}
+                      </div>
+                    )}
+                  </div>
                   {scores.core === 'Exempt' ? (
                     <span className="text-sm font-semibold text-gray-500 dark:text-slate-400">
                       Exempt

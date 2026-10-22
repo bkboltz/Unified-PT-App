@@ -10,7 +10,10 @@ import {
 } from '../services/api';
 import {
   calculateWhtr,
+  calculateWhtrDetails,
   calculateCardioScore,
+  evaluateWalk,
+  getComponentMinimum,
   calculateUpperScore,
   calculateCoreScore,
   calculateCompositeScore,
@@ -23,6 +26,7 @@ const SESSION_STORAGE_KEY = 'ptlActiveTestSession_v1';
 const ACTIVITY_NAMES = {
   run: '2-Mile Run',
   hamr: 'HAMR',
+  walk: '2.0km Walk',
   pushups: 'Standard Push-ups',
   hrPushups: 'HR Push-ups',
   situps: 'Standard Sit-ups',
@@ -78,10 +82,20 @@ function evaluateTester(tester) {
     hasUpperInput &&
     hasCoreInput;
 
-  const whtrScore = ex.whtr ? 0 : calculateWhtr(totalHeight, waistInches);
-  const cardioScore = ex.cardio
-    ? 0
-    : calculateCardioScore(tester.cardioType, tester.gender, tester.age, tester.cardioInput);
+  const whtrDetails = ex.whtr
+    ? { points: 0, ratioFormatted: null, risk: null, roundedWaist: 0 }
+    : calculateWhtrDetails(totalHeight, waistInches);
+  const whtrScore = whtrDetails.points;
+
+  const walkResult =
+    !ex.cardio && tester.cardioType === 'walk'
+      ? evaluateWalk(tester.gender, tester.age, tester.cardioInput)
+      : null;
+
+  const cardioScore =
+    ex.cardio || tester.cardioType === 'walk'
+      ? 0
+      : calculateCardioScore(tester.cardioType, tester.gender, tester.age, tester.cardioInput);
   const upperScore = ex.upper
     ? 0
     : calculateUpperScore(tester.upperType, tester.gender, tester.age, tester.upperInput);
@@ -90,12 +104,22 @@ function evaluateTester(tester) {
     : calculateCoreScore(tester.coreType, tester.gender, tester.age, tester.coreInput);
 
   const composite = calculateCompositeScore(
-    { whtr: whtrScore, cardio: cardioScore, upper: upperScore, core: coreScore },
+    {
+      whtr: whtrScore,
+      cardio: cardioScore,
+      upper: upperScore,
+      core: coreScore,
+      cardioType: tester.cardioType,
+      walkPassed: walkResult ? walkResult.passed : null
+    },
     ex
   );
 
   return {
     ...composite,
+    whtrRatio: whtrDetails.ratioFormatted,
+    whtrRisk: whtrDetails.risk,
+    roundedWaist: whtrDetails.roundedWaist,
     isComplete
   };
 }
@@ -1106,9 +1130,16 @@ export default function PtlDashboard() {
                       {/* Body Composition */}
                       <div className="p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50/50 dark:bg-slate-700/30 space-y-2.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
-                            Body Composition ({activeTester.exemptions.whtr ? 'Exempt' : `${activeTesterEval.whtr}/20`})
-                          </span>
+                          <div>
+                            <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                              Body Composition ({activeTester.exemptions.whtr ? 'Exempt' : `${activeTesterEval.whtr}/20`})
+                            </span>
+                            {!activeTester.exemptions.whtr && activeTesterEval.whtrRatio && (
+                              <span className="ml-2 text-[11px] text-gray-500 dark:text-slate-400">
+                                WHtR: {activeTesterEval.whtrRatio} ({activeTesterEval.whtrRisk})
+                              </span>
+                            )}
+                          </div>
                           <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-300 cursor-pointer">
                             <input
                               type="checkbox"
@@ -1144,7 +1175,7 @@ export default function PtlDashboard() {
                               <label className={labelStyle}>Inches</label>
                               <input
                                 type="number"
-                                step="0.5"
+                                step="any"
                                 inputMode="decimal"
                                 placeholder="10"
                                 value={activeTester.heightInches}
@@ -1158,7 +1189,7 @@ export default function PtlDashboard() {
                               <label className={labelStyle}>Waist</label>
                               <input
                                 type="number"
-                                step="0.5"
+                                step="any"
                                 inputMode="decimal"
                                 placeholder="34"
                                 value={activeTester.waist}
@@ -1178,7 +1209,13 @@ export default function PtlDashboard() {
                         <div className="p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50/50 dark:bg-slate-700/30 space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-bold">
-                              Cardio ({activeTester.exemptions.cardio ? 'Exempt' : `${activeTesterEval.cardio}/50`})
+                              Cardio (
+                              {activeTester.exemptions.cardio
+                                ? 'Exempt'
+                                : activeTester.cardioType === 'walk'
+                                ? activeTesterEval.cardio
+                                : `${activeTesterEval.cardio}/50`}
+                              )
                             </span>
                             <label className="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300 cursor-pointer">
                               <input
@@ -1209,18 +1246,33 @@ export default function PtlDashboard() {
                               >
                                 <option value="run">2-Mile Run</option>
                                 <option value="hamr">20M HAMR</option>
+                                <option value="walk">2.0km Walk (Profile)</option>
                               </select>
                               <input
-                                type={activeTester.cardioType === 'run' ? 'text' : 'number'}
-                                inputMode={activeTester.cardioType === 'run' ? 'numeric' : 'decimal'}
+                                type={
+                                  activeTester.cardioType === 'run' ||
+                                  activeTester.cardioType === 'walk'
+                                    ? 'text'
+                                    : 'number'
+                                }
+                                inputMode={
+                                  activeTester.cardioType === 'run' ||
+                                  activeTester.cardioType === 'walk'
+                                    ? 'numeric'
+                                    : 'decimal'
+                                }
                                 placeholder={
-                                  activeTester.cardioType === 'run' ? 'MM:SS' : 'Shuttles'
+                                  activeTester.cardioType === 'run' ||
+                                  activeTester.cardioType === 'walk'
+                                    ? 'MM:SS'
+                                    : 'Shuttles'
                                 }
                                 value={activeTester.cardioInput}
                                 onChange={(e) =>
                                   updateTester(activeTester.id, {
                                     cardioInput:
-                                      activeTester.cardioType === 'run'
+                                      activeTester.cardioType === 'run' ||
+                                      activeTester.cardioType === 'walk'
                                         ? formatTimeInput(e.target.value)
                                         : e.target.value
                                   })
