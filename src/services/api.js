@@ -68,8 +68,16 @@ export async function fetchLiveCheckIns() {
     const res = await fetch(`${APPS_SCRIPT_URL}?type=checkins`);
     const data = await res.json();
     if (Array.isArray(data)) {
+      const normalized = data.map(item => ({
+        timestamp: item.timestamp || item.Rank || '',
+        rank: item.rank || item['First Name'] || '',
+        firstName: item.firstName || item['Last Name'] || '',
+        lastName: item.lastName || item['Check-in Method'] || '',
+        method: item.method || item[''] || 'QR Scan'
+      }));
+
       const todayStr = new Date().toLocaleDateString();
-      const filtered = data.filter(item => {
+      const filtered = normalized.filter(item => {
         if (!item.timestamp) return false;
         return new Date(item.timestamp).toLocaleDateString() === todayStr;
       });
