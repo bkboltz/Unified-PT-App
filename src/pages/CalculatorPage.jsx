@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   calculateWhtr,
@@ -13,16 +13,31 @@ import {
 } from '../utils/calculator';
 import { submitScore } from '../services/api';
 import { RANKS } from '../data/scoringTables';
+import { loadSavedMemberProfile, saveMemberProfile } from '../utils/userStorage';
 
 export default function CalculatorPage() {
-  const [rank, setRank] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [gender, setGender] = useState('male');
-  const [age, setAge] = useState('');
-  const [heightFeet, setHeightFeet] = useState('');
-  const [heightInches, setHeightInches] = useState('');
+  const [savedProfile] = useState(() => loadSavedMemberProfile());
+
+  const [rank, setRank] = useState(savedProfile.rank || '');
+  const [firstName, setFirstName] = useState(savedProfile.firstName || '');
+  const [lastName, setLastName] = useState(savedProfile.lastName || '');
+  const [gender, setGender] = useState(savedProfile.gender || 'male');
+  const [age, setAge] = useState(savedProfile.age || '');
+  const [heightFeet, setHeightFeet] = useState(savedProfile.heightFeet || '');
+  const [heightInches, setHeightInches] = useState(savedProfile.heightInches || '');
   const [waist, setWaist] = useState('');
+
+  useEffect(() => {
+    saveMemberProfile({
+      rank,
+      firstName,
+      lastName,
+      gender,
+      age,
+      heightFeet,
+      heightInches
+    });
+  }, [rank, firstName, lastName, gender, age, heightFeet, heightInches]);
 
   const [cardioType, setCardioType] = useState('run');
   const [cardioInput, setCardioInput] = useState('');

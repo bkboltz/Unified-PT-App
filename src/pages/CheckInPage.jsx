@@ -2,16 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { submitCheckIn } from '../services/api';
 import { RANKS } from '../data/scoringTables';
+import { loadSavedMemberProfile, saveMemberProfile } from '../utils/userStorage';
 
 export default function CheckInPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('t');
 
-  const [form, setForm] = useState({
-    rank: '',
-    firstName: '',
-    lastName: ''
+  const [form, setForm] = useState(() => {
+    const saved = loadSavedMemberProfile();
+    return {
+      rank: saved.rank || '',
+      firstName: saved.firstName || '',
+      lastName: saved.lastName || ''
+    };
   });
+
+  useEffect(() => {
+    saveMemberProfile({
+      rank: form.rank,
+      firstName: form.firstName,
+      lastName: form.lastName
+    });
+  }, [form.rank, form.firstName, form.lastName]);
 
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
