@@ -41,10 +41,6 @@ export function timeToSeconds(timeStr, fallback = 9999) {
   if (!timeStr || typeof timeStr !== 'string') return fallback;
   const s = timeStr.replace(/>|=|<|\*/g, '').trim();
   if (!s.includes(':')) {
-    if (/^\d{1,2}$/.test(s)) {
-      const onlySecs = Number(s);
-      if (onlySecs >= 0 && onlySecs < 60) return onlySecs;
-    }
     return fallback;
   }
   const [minsStr, secsStr] = s.split(':');

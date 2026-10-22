@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  calculateWhtr,
   calculateWhtrDetails,
   calculateCardioScore,
   evaluateWalk,
@@ -55,24 +54,6 @@ export default function CalculatorPage() {
     core: false
   });
 
-  const [scores, setScores] = useState({
-    whtr: 0,
-    whtrRatio: null,
-    whtrRisk: null,
-    roundedWaist: null,
-    cardio: 0,
-    upper: 0,
-    core: 0,
-    earnedPoints: 0,
-    possiblePoints: 100,
-    total: 0,
-    passed: false,
-    isFullExempt: false,
-    hasZeroComponent: false,
-    statusText: ''
-  });
-
-  const [hasCalculated, setHasCalculated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const toggleExemption = (componentKey) => {
@@ -98,31 +79,42 @@ export default function CalculatorPage() {
     }
   };
 
-  const handleCalculate = (e) => {
-    e.preventDefault();
-    const totalHeight = parseInt(heightFeet || 0, 10) * 12 + parseFloat(heightInches || 0);
-    const waistInches = parseFloat(waist || 0);
+  const totalHeight = parseInt(heightFeet || 0, 10) * 12 + parseFloat(heightInches || 0);
+  const waistInches = parseFloat(waist || 0);
+  const hasWhtrInput = !exemptions.whtr && totalHeight > 0 && waistInches > 0;
+  const hasCardioInput =
+    !exemptions.cardio &&
+    cardioInput.toString().trim() !== '' &&
+    (cardioType === 'hamr' || cardioInput.includes(':'));
+  const hasUpperInput = !exemptions.upper && upperInput.toString().trim() !== '';
+  const hasCoreInput =
+    !exemptions.core &&
+    coreInput.toString().trim() !== '' &&
+    (coreType !== 'plank' || coreInput.includes(':'));
 
+  const scores = useMemo(() => {
     const whtrDetails = exemptions.whtr
       ? { points: 0, ratioFormatted: null, risk: null, roundedWaist: 0 }
       : calculateWhtrDetails(totalHeight, waistInches);
     const whtrScore = whtrDetails.points;
 
     const walkResult =
-      !exemptions.cardio && cardioType === 'walk'
+      !exemptions.cardio && cardioType === 'walk' && hasCardioInput
         ? evaluateWalk(gender, age, cardioInput)
         : null;
 
     const cardioScore =
-      exemptions.cardio || cardioType === 'walk'
+      exemptions.cardio || cardioType === 'walk' || !hasCardioInput
         ? 0
         : calculateCardioScore(cardioType, gender, age, cardioInput);
-    const upperScore = exemptions.upper
-      ? 0
-      : calculateUpperScore(upperType, gender, age, upperInput);
-    const coreScore = exemptions.core
-      ? 0
-      : calculateCoreScore(coreType, gender, age, coreInput);
+    const upperScore =
+      exemptions.upper || !hasUpperInput
+        ? 0
+        : calculateUpperScore(upperType, gender, age, upperInput);
+    const coreScore =
+      exemptions.core || !hasCoreInput
+        ? 0
+        : calculateCoreScore(coreType, gender, age, coreInput);
 
     const composite = calculateCompositeScore(
       {
@@ -131,23 +123,38 @@ export default function CalculatorPage() {
         upper: upperScore,
         core: coreScore,
         cardioType,
-        walkPassed: walkResult ? walkResult.passed : null
+        walkPassed: walkResult ? walkResult.passed : false
       },
       exemptions
     );
 
-    setScores({
+    return {
       ...composite,
       whtrRatio: whtrDetails.ratioFormatted,
       whtrRisk: whtrDetails.risk,
       roundedWaist: whtrDetails.roundedWaist
-    });
-    setHasCalculated(true);
-  };
+    };
+  }, [
+    totalHeight,
+    waistInches,
+    exemptions,
+    cardioType,
+    cardioInput,
+    hasCardioInput,
+    upperType,
+    upperInput,
+    hasUpperInput,
+    coreType,
+    coreInput,
+    hasCoreInput,
+    gender,
+    age
+  ]);
 
   const isPass = scores.passed;
 
-  const handleSubmitScore = async () => {
+  const handleSubmitScore = async (e) => {
+    e.preventDefault();
     setIsSubmitting(true);
     const activityNames = {
       run: '2-Mile Run',
@@ -183,7 +190,6 @@ export default function CalculatorPage() {
     const res = await submitScore(payload);
     if (res.success) {
       alert('Score submitted successfully to the spreadsheet!');
-      setHasCalculated(false);
     } else {
       alert('Error submitting score. Please check your connection.');
     }
@@ -207,7 +213,7 @@ export default function CalculatorPage() {
         </div>
 
         <div className="p-8">
-          <form onSubmit={handleCalculate} className="space-y-8">
+          <form onSubmit={handleSubmitScore} className="space-y-8">
             {/* Member Identification */}
             <section>
               <h3 className="text-lg font-semibold border-b pb-2 mb-4 border-gray-200 dark:border-slate-600">
@@ -298,7 +304,20 @@ export default function CalculatorPage() {
             {/* Body Composition */}
             <section>
               <div className="flex items-center justify-between border-b pb-2 mb-4 border-gray-200 dark:border-slate-600">
-                <h3 className="text-lg font-semibold">Body Composition (20 Pts)</h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-semibold">Body Composition (20 Pts)</h3>
+                  {!exemptions.whtr && hasWhtrInput && (
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        scores.whtr > 0
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                          : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
+                      }`}
+                    >
+                      {scores.whtr} / 20.0 pts
+                    </span>
+                  )}
+                </div>
                 <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-slate-300 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -314,46 +333,60 @@ export default function CalculatorPage() {
                   Exempt
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div>
-                    <label className={labelStyle}>Height (Feet)</label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={heightFeet}
-                      onChange={(e) => setHeightFeet(e.target.value)}
-                      placeholder="e.g. 5"
-                      className={inputStyle}
-                      required={!exemptions.whtr}
-                    />
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div>
+                      <label className={labelStyle}>Height (Feet)</label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={heightFeet}
+                        onChange={(e) => setHeightFeet(e.target.value)}
+                        placeholder="e.g. 5"
+                        className={inputStyle}
+                        required={!exemptions.whtr}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelStyle}>Inches</label>
+                      <input
+                        type="number"
+                        step="any"
+                        inputMode="decimal"
+                        value={heightInches}
+                        onChange={(e) => setHeightInches(e.target.value)}
+                        placeholder="e.g. 10"
+                        className={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelStyle}>Waist (inches)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        inputMode="decimal"
+                        value={waist}
+                        onChange={(e) => setWaist(e.target.value)}
+                        placeholder="e.g. 34"
+                        className={inputStyle}
+                        required={!exemptions.whtr}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className={labelStyle}>Inches</label>
-                    <input
-                      type="number"
-                      step="any"
-                      inputMode="decimal"
-                      value={heightInches}
-                      onChange={(e) => setHeightInches(e.target.value)}
-                      placeholder="e.g. 10"
-                      className={inputStyle}
-                      required={!exemptions.whtr}
-                    />
-                  </div>
-                  <div>
-                    <label className={labelStyle}>Waist (inches)</label>
-                    <input
-                      type="number"
-                      step="any"
-                      inputMode="decimal"
-                      value={waist}
-                      onChange={(e) => setWaist(e.target.value)}
-                      placeholder="e.g. 34"
-                      className={inputStyle}
-                      required={!exemptions.whtr}
-                    />
-                  </div>
-                </div>
+                  {hasWhtrInput && scores.whtrRatio && (
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-blue-50/70 dark:bg-slate-700/60 border border-blue-100 dark:border-slate-600 text-xs text-gray-700 dark:text-slate-300">
+                      <div>
+                        WHtR: <span className="font-bold">{scores.whtrRatio}</span> ({scores.whtrRisk})
+                        {scores.roundedWaist && parseFloat(waist) !== scores.roundedWaist && (
+                          <span> • Waist rounded down to {scores.roundedWaist}&quot;</span>
+                        )}
+                      </div>
+                      <span className="font-bold text-blue-700 dark:text-blue-300">
+                        +{scores.whtr} / 20.0 pts
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
             </section>
 
@@ -364,159 +397,238 @@ export default function CalculatorPage() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Cardio */}
-                <div className="space-y-3 bg-gray-50 dark:bg-slate-700/50 p-4 rounded-lg border border-gray-200 dark:border-slate-600">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium text-sm text-gray-800 dark:text-gray-200">
-                      Cardio (50 Pts)
+                <div className="flex flex-col justify-between space-y-3 bg-gray-50 dark:bg-slate-700/50 p-4 rounded-lg border border-gray-200 dark:border-slate-600">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-medium text-sm text-gray-800 dark:text-gray-200">
+                        Cardio (50 Pts)
+                      </div>
+                      <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-slate-300 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={exemptions.cardio}
+                          onChange={() => toggleExemption('cardio')}
+                          className="rounded border-gray-300 dark:border-slate-500 text-blue-600 focus:ring-blue-500"
+                        />
+                        Exempt
+                      </label>
                     </div>
-                    <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-slate-300 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={exemptions.cardio}
-                        onChange={() => toggleExemption('cardio')}
-                        className="rounded border-gray-300 dark:border-slate-500 text-blue-600 focus:ring-blue-500"
-                      />
-                      Exempt
-                    </label>
+                    {exemptions.cardio ? (
+                      <div className="py-5 text-center rounded-md bg-gray-100/80 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-600 text-xs font-medium text-gray-500 dark:text-slate-400">
+                        Exempt
+                      </div>
+                    ) : (
+                      <>
+                        <select
+                          value={cardioType}
+                          onChange={(e) => {
+                            setCardioType(e.target.value);
+                            setCardioInput('');
+                          }}
+                          className={inputStyle}
+                        >
+                          <option value="run">2-Mile Run</option>
+                          <option value="hamr">20-Meter HAMR</option>
+                          <option value="walk">2.0 km Walk (Profile)</option>
+                        </select>
+                        <input
+                          type={cardioType === 'run' || cardioType === 'walk' ? 'text' : 'number'}
+                          inputMode={cardioType === 'run' || cardioType === 'walk' ? 'numeric' : 'decimal'}
+                          value={cardioInput}
+                          onChange={(e) => handleCardioInputChange(e.target.value)}
+                          placeholder={cardioType === 'run' || cardioType === 'walk' ? 'MM:SS' : 'Total Shuttles'}
+                          className={inputStyle}
+                          required={!exemptions.cardio}
+                        />
+                      </>
+                    )}
                   </div>
-                  {exemptions.cardio ? (
-                    <div className="py-5 text-center rounded-md bg-gray-100/80 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-600 text-xs font-medium text-gray-500 dark:text-slate-400">
-                      Exempt
+                  {!exemptions.cardio && (
+                    <div className="pt-2 border-t border-gray-200/80 dark:border-slate-600/80 flex items-center justify-between text-xs">
+                      <span className="text-gray-500 dark:text-slate-400">Score</span>
+                      {!hasCardioInput ? (
+                        <span className="font-semibold text-gray-400 dark:text-slate-500">
+                          {cardioType === 'walk' ? 'Pass / Fail' : '— / 50.0 pts'}
+                        </span>
+                      ) : !age ? (
+                        <span className="font-semibold text-amber-600 dark:text-amber-400">
+                          Enter Age above
+                        </span>
+                      ) : cardioType === 'walk' ? (
+                        <span
+                          className={`font-bold ${
+                            scores.cardio === 'Pass (Walk)'
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}
+                        >
+                          {scores.cardio}
+                        </span>
+                      ) : (
+                        <span
+                          className={`font-bold ${
+                            scores.cardio > 0
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}
+                        >
+                          {scores.cardio} / 50.0 pts
+                        </span>
+                      )}
                     </div>
-                  ) : (
-                    <>
-                      <select
-                        value={cardioType}
-                        onChange={(e) => {
-                          setCardioType(e.target.value);
-                          setCardioInput('');
-                        }}
-                        className={inputStyle}
-                      >
-                        <option value="run">2-Mile Run</option>
-                        <option value="hamr">20-Meter HAMR</option>
-                        <option value="walk">2.0 km Walk (Profile)</option>
-                      </select>
-                      <input
-                        type={cardioType === 'run' || cardioType === 'walk' ? 'text' : 'number'}
-                        inputMode={cardioType === 'run' || cardioType === 'walk' ? 'numeric' : 'decimal'}
-                        value={cardioInput}
-                        onChange={(e) => handleCardioInputChange(e.target.value)}
-                        placeholder={cardioType === 'run' || cardioType === 'walk' ? 'MM:SS' : 'Total Shuttles'}
-                        className={inputStyle}
-                        required={!exemptions.cardio}
-                      />
-                    </>
                   )}
                 </div>
 
                 {/* Upper Body */}
-                <div className="space-y-3 bg-gray-50 dark:bg-slate-700/50 p-4 rounded-lg border border-gray-200 dark:border-slate-600">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium text-sm text-gray-800 dark:text-gray-200">
-                      Upper Body (15 Pts)
+                <div className="flex flex-col justify-between space-y-3 bg-gray-50 dark:bg-slate-700/50 p-4 rounded-lg border border-gray-200 dark:border-slate-600">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-medium text-sm text-gray-800 dark:text-gray-200">
+                        Upper Body (15 Pts)
+                      </div>
+                      <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-slate-300 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={exemptions.upper}
+                          onChange={() => toggleExemption('upper')}
+                          className="rounded border-gray-300 dark:border-slate-500 text-blue-600 focus:ring-blue-500"
+                        />
+                        Exempt
+                      </label>
                     </div>
-                    <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-slate-300 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={exemptions.upper}
-                        onChange={() => toggleExemption('upper')}
-                        className="rounded border-gray-300 dark:border-slate-500 text-blue-600 focus:ring-blue-500"
-                      />
-                      Exempt
-                    </label>
+                    {exemptions.upper ? (
+                      <div className="py-5 text-center rounded-md bg-gray-100/80 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-600 text-xs font-medium text-gray-500 dark:text-slate-400">
+                        Exempt
+                      </div>
+                    ) : (
+                      <>
+                        <select
+                          value={upperType}
+                          onChange={(e) => {
+                            setUpperType(e.target.value);
+                            setUpperInput('');
+                          }}
+                          className={inputStyle}
+                        >
+                          <option value="pushups">Standard Push-ups</option>
+                          <option value="hrPushups">HR Push-ups</option>
+                        </select>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={upperInput}
+                          onChange={(e) => setUpperInput(e.target.value)}
+                          placeholder="Total Reps"
+                          className={inputStyle}
+                          required={!exemptions.upper}
+                        />
+                      </>
+                    )}
                   </div>
-                  {exemptions.upper ? (
-                    <div className="py-5 text-center rounded-md bg-gray-100/80 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-600 text-xs font-medium text-gray-500 dark:text-slate-400">
-                      Exempt
+                  {!exemptions.upper && (
+                    <div className="pt-2 border-t border-gray-200/80 dark:border-slate-600/80 flex items-center justify-between text-xs">
+                      <span className="text-gray-500 dark:text-slate-400">Score</span>
+                      {!hasUpperInput ? (
+                        <span className="font-semibold text-gray-400 dark:text-slate-500">
+                          — / 15.0 pts
+                        </span>
+                      ) : !age ? (
+                        <span className="font-semibold text-amber-600 dark:text-amber-400">
+                          Enter Age above
+                        </span>
+                      ) : (
+                        <span
+                          className={`font-bold ${
+                            scores.upper > 0
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}
+                        >
+                          {scores.upper} / 15.0 pts
+                        </span>
+                      )}
                     </div>
-                  ) : (
-                    <>
-                      <select
-                        value={upperType}
-                        onChange={(e) => {
-                          setUpperType(e.target.value);
-                          setUpperInput('');
-                        }}
-                        className={inputStyle}
-                      >
-                        <option value="pushups">Standard Push-ups</option>
-                        <option value="hrPushups">HR Push-ups</option>
-                      </select>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={upperInput}
-                        onChange={(e) => setUpperInput(e.target.value)}
-                        placeholder="Total Reps"
-                        className={inputStyle}
-                        required={!exemptions.upper}
-                      />
-                    </>
                   )}
                 </div>
 
                 {/* Core */}
-                <div className="space-y-3 bg-gray-50 dark:bg-slate-700/50 p-4 rounded-lg border border-gray-200 dark:border-slate-600">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium text-sm text-gray-800 dark:text-gray-200">
-                      Core (15 Pts)
+                <div className="flex flex-col justify-between space-y-3 bg-gray-50 dark:bg-slate-700/50 p-4 rounded-lg border border-gray-200 dark:border-slate-600">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-medium text-sm text-gray-800 dark:text-gray-200">
+                        Core (15 Pts)
+                      </div>
+                      <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-slate-300 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={exemptions.core}
+                          onChange={() => toggleExemption('core')}
+                          className="rounded border-gray-300 dark:border-slate-500 text-blue-600 focus:ring-blue-500"
+                        />
+                        Exempt
+                      </label>
                     </div>
-                    <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-slate-300 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={exemptions.core}
-                        onChange={() => toggleExemption('core')}
-                        className="rounded border-gray-300 dark:border-slate-500 text-blue-600 focus:ring-blue-500"
-                      />
-                      Exempt
-                    </label>
+                    {exemptions.core ? (
+                      <div className="py-5 text-center rounded-md bg-gray-100/80 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-600 text-xs font-medium text-gray-500 dark:text-slate-400">
+                        Exempt
+                      </div>
+                    ) : (
+                      <>
+                        <select
+                          value={coreType}
+                          onChange={(e) => {
+                            setCoreType(e.target.value);
+                            setCoreInput('');
+                          }}
+                          className={inputStyle}
+                        >
+                          <option value="situps">Standard Sit-ups</option>
+                          <option value="crunches">CLR Crunches</option>
+                          <option value="plank">Forearm Plank</option>
+                        </select>
+                        <input
+                          type={coreType === 'plank' ? 'text' : 'number'}
+                          inputMode={coreType === 'plank' ? 'numeric' : 'decimal'}
+                          value={coreInput}
+                          onChange={(e) => handleCoreInputChange(e.target.value)}
+                          placeholder={coreType === 'plank' ? 'MM:SS' : 'Total Reps'}
+                          className={inputStyle}
+                          required={!exemptions.core}
+                        />
+                      </>
+                    )}
                   </div>
-                  {exemptions.core ? (
-                    <div className="py-5 text-center rounded-md bg-gray-100/80 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-600 text-xs font-medium text-gray-500 dark:text-slate-400">
-                      Exempt
+                  {!exemptions.core && (
+                    <div className="pt-2 border-t border-gray-200/80 dark:border-slate-600/80 flex items-center justify-between text-xs">
+                      <span className="text-gray-500 dark:text-slate-400">Score</span>
+                      {!hasCoreInput ? (
+                        <span className="font-semibold text-gray-400 dark:text-slate-500">
+                          — / 15.0 pts
+                        </span>
+                      ) : !age ? (
+                        <span className="font-semibold text-amber-600 dark:text-amber-400">
+                          Enter Age above
+                        </span>
+                      ) : (
+                        <span
+                          className={`font-bold ${
+                            scores.core > 0
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}
+                        >
+                          {scores.core} / 15.0 pts
+                        </span>
+                      )}
                     </div>
-                  ) : (
-                    <>
-                      <select
-                        value={coreType}
-                        onChange={(e) => {
-                          setCoreType(e.target.value);
-                          setCoreInput('');
-                        }}
-                        className={inputStyle}
-                      >
-                        <option value="situps">Standard Sit-ups</option>
-                        <option value="crunches">CLR Crunches</option>
-                        <option value="plank">Forearm Plank</option>
-                      </select>
-                      <input
-                        type={coreType === 'plank' ? 'text' : 'number'}
-                        inputMode={coreType === 'plank' ? 'numeric' : 'decimal'}
-                        value={coreInput}
-                        onChange={(e) => handleCoreInputChange(e.target.value)}
-                        placeholder={coreType === 'plank' ? 'MM:SS' : 'Total Reps'}
-                        className={inputStyle}
-                        required={!exemptions.core}
-                      />
-                    </>
                   )}
                 </div>
               </div>
             </section>
 
-            <button
-              type="submit"
-              className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-lg shadow-sm text-base font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all active:scale-[0.98]"
-            >
-              Calculate Score
-            </button>
-          </form>
-
-          {/* Results Breakdown */}
-          {hasCalculated && (
+            {/* Live Results Breakdown */}
             <div
-              className={`mt-8 p-6 rounded-xl border shadow-inner ${
+              className={`mt-8 p-6 rounded-xl border shadow-inner transition-colors ${
                 isPass
                   ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
                   : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
@@ -553,6 +665,7 @@ export default function CalculatorPage() {
                   <div>
                     <span className="text-gray-600 dark:text-gray-300">Cardio</span>
                     {scores.cardio !== 'Exempt' &&
+                      age &&
                       (scores.cardio === 0 || scores.cardio === 'Fail (Walk)') && (
                         <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">
                           Standard: {getComponentMinimum(cardioType, gender, age)}
@@ -576,13 +689,15 @@ export default function CalculatorPage() {
                   ) : (
                     <strong
                       className={
-                        scores.cardio === 0
+                        hasCardioInput && scores.cardio === 0
                           ? 'text-red-600 dark:text-red-400'
                           : 'text-gray-900 dark:text-white'
                       }
                     >
                       {scores.cardio} / 50.0{' '}
-                      {scores.cardio === 0 && <span className="text-xs ml-1">(Fail)</span>}
+                      {hasCardioInput && scores.cardio === 0 && (
+                        <span className="text-xs ml-1">(Fail)</span>
+                      )}
                     </strong>
                   )}
                 </div>
@@ -590,7 +705,7 @@ export default function CalculatorPage() {
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-slate-600/50">
                   <div>
                     <span className="text-gray-600 dark:text-gray-300">Upper Body</span>
-                    {scores.upper !== 'Exempt' && scores.upper === 0 && (
+                    {scores.upper !== 'Exempt' && age && scores.upper === 0 && (
                       <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">
                         Standard: {getComponentMinimum(upperType, gender, age)}
                       </div>
@@ -603,13 +718,15 @@ export default function CalculatorPage() {
                   ) : (
                     <strong
                       className={
-                        scores.upper === 0
+                        hasUpperInput && scores.upper === 0
                           ? 'text-red-600 dark:text-red-400'
                           : 'text-gray-900 dark:text-white'
                       }
                     >
                       {scores.upper} / 15.0{' '}
-                      {scores.upper === 0 && <span className="text-xs ml-1">(Fail)</span>}
+                      {hasUpperInput && scores.upper === 0 && (
+                        <span className="text-xs ml-1">(Fail)</span>
+                      )}
                     </strong>
                   )}
                 </div>
@@ -617,7 +734,7 @@ export default function CalculatorPage() {
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-slate-600/50">
                   <div>
                     <span className="text-gray-600 dark:text-gray-300">Core</span>
-                    {scores.core !== 'Exempt' && scores.core === 0 && (
+                    {scores.core !== 'Exempt' && age && scores.core === 0 && (
                       <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">
                         Standard: {getComponentMinimum(coreType, gender, age)}
                       </div>
@@ -630,13 +747,15 @@ export default function CalculatorPage() {
                   ) : (
                     <strong
                       className={
-                        scores.core === 0
+                        hasCoreInput && scores.core === 0
                           ? 'text-red-600 dark:text-red-400'
                           : 'text-gray-900 dark:text-white'
                       }
                     >
                       {scores.core} / 15.0{' '}
-                      {scores.core === 0 && <span className="text-xs ml-1">(Fail)</span>}
+                      {hasCoreInput && scores.core === 0 && (
+                        <span className="text-xs ml-1">(Fail)</span>
+                      )}
                     </strong>
                   )}
                 </div>
@@ -663,7 +782,7 @@ export default function CalculatorPage() {
               </div>
 
               <button
-                onClick={handleSubmitScore}
+                type="submit"
                 disabled={isSubmitting}
                 className={`w-full py-3.5 px-4 rounded-lg shadow-sm text-base font-bold text-white focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed ${
                   isPass
@@ -674,7 +793,7 @@ export default function CalculatorPage() {
                 {isSubmitting ? 'Submitting...' : 'Submit to PTL'}
               </button>
             </div>
-          )}
+          </form>
         </div>
 
         <div className="bg-gray-50 dark:bg-slate-800/80 px-8 py-4 border-t border-gray-100 dark:border-slate-700 text-center space-y-2">
