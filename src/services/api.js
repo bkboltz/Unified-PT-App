@@ -68,13 +68,28 @@ export async function fetchLiveCheckIns() {
     const res = await fetch(`${APPS_SCRIPT_URL}?type=checkins`);
     const data = await res.json();
     if (Array.isArray(data)) {
-      const normalized = data.map(item => ({
-        timestamp: item.timestamp || item.Rank || '',
-        rank: item.rank || item['First Name'] || '',
-        firstName: item.firstName || item['Last Name'] || '',
-        lastName: item.lastName || item['Check-in Method'] || '',
-        method: item.method || item[''] || 'QR Scan'
-      }));
+      const normalized = data.map(item => {
+        // Shifted format: item.Rank contains a date string
+        const isShifted = item.Rank && !isNaN(Date.parse(item.Rank));
+        if (isShifted) {
+          return {
+            timestamp: item.Rank,
+            rank: item['First Name'] || '',
+            firstName: item['Last Name'] || '',
+            lastName: item['Check-in Method'] || '',
+            method: item[''] || item.method || 'QR Scan'
+          };
+        }
+
+        // Corrected or standard format
+        return {
+          timestamp: item.Timestamp || item.timestamp || item.Rank || '',
+          rank: item.Rank || item.rank || '',
+          firstName: item['First Name'] || item.firstName || '',
+          lastName: item['Last Name'] || item.lastName || '',
+          method: item['Check-in Method'] || item.method || 'QR Scan'
+        };
+      });
 
       const todayStr = new Date().toLocaleDateString();
       const filtered = normalized.filter(item => {
