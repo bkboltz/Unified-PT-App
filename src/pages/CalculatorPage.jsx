@@ -77,7 +77,7 @@ export default function CalculatorPage() {
   };
 
   const hasZeroComponent =
-    scores.whtr === 0 || scores.cardio === 0 || scores.upper === 0 || scores.core === 0;
+    scores.cardio === 0 || scores.upper === 0 || scores.core === 0;
   const isPass = scores.total >= 75 && !hasZeroComponent;
 
   const handleSubmitScore = async () => {
@@ -387,15 +387,8 @@ export default function CalculatorPage() {
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-slate-600/50">
                   <span className="text-gray-600 dark:text-gray-300">Body Composition</span>
-                  <strong
-                    className={
-                      scores.whtr === 0
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-gray-900 dark:text-white'
-                    }
-                  >
-                    {scores.whtr} / 20.0{' '}
-                    {scores.whtr === 0 && <span className="text-xs ml-1">(Fail)</span>}
+                  <strong className="text-gray-900 dark:text-white">
+                    {scores.whtr} / 20.0
                   </strong>
                 </div>
 

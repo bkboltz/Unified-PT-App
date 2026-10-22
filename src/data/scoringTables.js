@@ -1078,7 +1078,7 @@ export const pushupsTable = {
             f: 15
         }, {
             p: 3,
-            m: 26,
+            m: 28,
             f: 14
         }, {
             p: 2.5,
@@ -6010,7 +6010,7 @@ export const hamrTable = {
         }, {
             p: 36,
             m: 34,
-            f: 18
+            f: 19
         }, {
             p: 35.5,
             m: 32,

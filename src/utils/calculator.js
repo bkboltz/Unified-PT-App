@@ -34,21 +34,28 @@ export function getAgeBracket(age) {
 }
 
 /**
- * Converts a "MM:SS" time string into total seconds.
+ * Converts a "MM:SS" or "M:SS" time string into total seconds.
  */
-export function timeToSeconds(timeStr) {
-  if (!timeStr || !timeStr.includes(':')) return 9999;
+export function timeToSeconds(timeStr, fallback = 9999) {
+  if (!timeStr || typeof timeStr !== 'string' || !timeStr.includes(':')) return fallback;
   const s = timeStr.replace(/>|=|<|\*/g, '').trim();
-  const [mins, secs] = s.split(':').map(Number);
-  return mins * 60 + (secs || 0);
+  const [minsStr, secsStr] = s.split(':');
+  if (!minsStr || !secsStr || secsStr.length !== 2) return fallback;
+  const mins = Number(minsStr);
+  const secs = Number(secsStr);
+  if (isNaN(mins) || isNaN(secs) || mins < 0 || secs < 0 || secs >= 60) return fallback;
+  return mins * 60 + secs;
 }
 
 /**
- * Formats user input into MM:SS automatically as they type digits.
+ * Formats user input into M:SS (3 digits) or MM:SS (4 digits) automatically as they type digits.
  */
 export function formatTimeInput(val) {
   const digits = val.replace(/\D/g, '').slice(0, 4);
-  if (digits.length > 2) {
+  if (digits.length === 3) {
+    return `${digits[0]}:${digits.slice(1)}`;
+  }
+  if (digits.length > 3) {
     return `${digits.slice(0, 2)}:${digits.slice(2)}`;
   }
   return digits;
@@ -56,11 +63,12 @@ export function formatTimeInput(val) {
 
 /**
  * Calculates Waist-to-Height Ratio (WHtR) points according to USAF standards.
+ * DAFMAN 36-2905 Para 3.15.4.2: WHtR results are truncated (not rounded) to the first two decimal points.
  * Max points: 20.0
  */
 export function calculateWhtr(heightInches, waistInches) {
   if (!heightInches || !waistInches) return 0;
-  const r = Number((waistInches / heightInches).toFixed(2));
+  const r = Math.floor((waistInches / heightInches) * 100 + 1e-9) / 100;
   return r <= 0.49
     ? 20
     : r === 0.50
@@ -150,11 +158,11 @@ export function calculateCoreScore(type, gender, age, value) {
   const gKey = gender === 'male' ? 'm' : 'f';
 
   if (type === 'plank') {
-    const userSec = timeToSeconds(value);
+    const userSec = timeToSeconds(value, 0);
     const table = plankTable[bracket];
     if (!table) return 0;
     for (const row of table) {
-      if (userSec >= timeToSeconds(row[gKey])) {
+      if (userSec >= timeToSeconds(row[gKey], 0)) {
         return row.p;
       }
     }
@@ -174,10 +182,11 @@ export function calculateCoreScore(type, gender, age, value) {
 
 /**
  * Calculates composite score and determines USAF pass/fail status.
+ * DAFMAN 36-2905 Para 3.1 & 3.7.1: Body Composition does not have a minimum component requirement.
  */
 export function calculateCompositeScore({ whtr = 0, cardio = 0, upper = 0, core = 0 }) {
   const total = Number((whtr + cardio + upper + core).toFixed(1));
-  const hasZeroComponent = whtr === 0 || cardio === 0 || upper === 0 || core === 0;
+  const hasZeroComponent = cardio === 0 || upper === 0 || core === 0;
   const passed = total >= 75 && !hasZeroComponent;
 
   let statusText = 'Passing Score';
