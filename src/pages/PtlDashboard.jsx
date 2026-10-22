@@ -1421,7 +1421,7 @@ export default function PtlDashboard() {
           {/* Footer Subtext Credits */}
           <footer className="pt-4 pb-2 text-center">
             <p className="text-[11px] text-gray-400 dark:text-slate-500">
-              Created &amp; Designed by <span className="font-medium text-gray-500 dark:text-slate-400">Brandon Boltz</span> •{' '}
+              Created &amp; Designed by <span className="font-medium text-gray-500 dark:text-slate-400">TSgt Brandon Boltz</span> •{' '}
               <a
                 href="https://github.com/bkboltz/Unified-PT-App"
                 target="_blank"
@@ -1488,7 +1488,7 @@ export default function PtlDashboard() {
             </Link>
           </div>
           <p className="text-[11px] text-gray-400 dark:text-slate-500">
-            Created &amp; Designed by <span className="font-medium text-gray-500 dark:text-slate-400">Brandon Boltz</span> •{' '}
+            Created &amp; Designed by <span className="font-medium text-gray-500 dark:text-slate-400">TSgt Brandon Boltz</span> •{' '}
             <a
               href="https://github.com/bkboltz/Unified-PT-App"
               target="_blank"
