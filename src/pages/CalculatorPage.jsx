@@ -218,6 +218,13 @@ export default function CalculatorPage() {
   ]);
 
   const isPass = scores.passed;
+  const requiresAge = !(exemptions.cardio && exemptions.upper && exemptions.core);
+  const isAssessmentComplete =
+    (!requiresAge || Boolean(age && parseInt(age, 10) > 0)) &&
+    (exemptions.whtr || hasWhtrInput) &&
+    (exemptions.cardio || hasCardioInput) &&
+    (exemptions.upper || hasUpperInput) &&
+    (exemptions.core || hasCoreInput);
 
   const handleSubmitScore = async (e) => {
     e.preventDefault();
@@ -756,7 +763,9 @@ export default function CalculatorPage() {
             {/* Live Results Breakdown */}
             <div
               className={`mt-8 p-6 rounded-xl border shadow-inner transition-colors ${
-                isPass
+                !isAssessmentComplete
+                  ? 'bg-gray-50 dark:bg-slate-700/40 border-gray-200 dark:border-slate-600'
+                  : isPass
                   ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
                   : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
               }`}
@@ -768,7 +777,7 @@ export default function CalculatorPage() {
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-slate-600/50">
                   <div>
                     <span className="text-gray-600 dark:text-gray-300">Body Composition</span>
-                    {scores.whtr !== 'Exempt' && scores.whtrRatio && (
+                    {scores.whtr !== 'Exempt' && hasWhtrInput && scores.whtrRatio && (
                       <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
                         WHtR: <span className="font-semibold">{scores.whtrRatio}</span> ({scores.whtrRisk})
                         {scores.roundedWaist && parseFloat(waist) !== scores.roundedWaist && (
@@ -781,6 +790,10 @@ export default function CalculatorPage() {
                     <span className="text-sm font-semibold text-gray-500 dark:text-slate-400">
                       Exempt
                     </span>
+                  ) : !hasWhtrInput ? (
+                    <span className="text-sm font-semibold text-gray-400 dark:text-slate-500">
+                      — / 20.0
+                    </span>
                   ) : (
                     <strong className="text-gray-900 dark:text-white">
                       {scores.whtr} / 20.0
@@ -792,6 +805,7 @@ export default function CalculatorPage() {
                   <div>
                     <span className="text-gray-600 dark:text-gray-300">Cardio</span>
                     {scores.cardio !== 'Exempt' &&
+                      hasCardioInput &&
                       age &&
                       (scores.cardio === 0 || scores.cardio === 'Fail (Walk)') && (
                         <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">
@@ -802,6 +816,10 @@ export default function CalculatorPage() {
                   {scores.cardio === 'Exempt' ? (
                     <span className="text-sm font-semibold text-gray-500 dark:text-slate-400">
                       Exempt
+                    </span>
+                  ) : !hasCardioInput ? (
+                    <span className="text-sm font-semibold text-gray-400 dark:text-slate-500">
+                      {cardioType === 'walk' ? '—' : '— / 50.0'}
                     </span>
                   ) : scores.cardio === 'Pass (Walk)' || scores.cardio === 'Fail (Walk)' ? (
                     <strong
@@ -816,13 +834,13 @@ export default function CalculatorPage() {
                   ) : (
                     <strong
                       className={
-                        hasCardioInput && scores.cardio === 0
+                        scores.cardio === 0
                           ? 'text-red-600 dark:text-red-400'
                           : 'text-gray-900 dark:text-white'
                       }
                     >
                       {scores.cardio} / 50.0{' '}
-                      {hasCardioInput && scores.cardio === 0 && (
+                      {scores.cardio === 0 && (
                         <span className="text-xs ml-1">(Fail)</span>
                       )}
                     </strong>
@@ -832,7 +850,7 @@ export default function CalculatorPage() {
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-slate-600/50">
                   <div>
                     <span className="text-gray-600 dark:text-gray-300">Upper Body</span>
-                    {scores.upper !== 'Exempt' && age && scores.upper === 0 && (
+                    {scores.upper !== 'Exempt' && hasUpperInput && age && scores.upper === 0 && (
                       <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">
                         Standard: {getComponentMinimum(upperType, gender, age)}
                       </div>
@@ -842,16 +860,20 @@ export default function CalculatorPage() {
                     <span className="text-sm font-semibold text-gray-500 dark:text-slate-400">
                       Exempt
                     </span>
+                  ) : !hasUpperInput ? (
+                    <span className="text-sm font-semibold text-gray-400 dark:text-slate-500">
+                      — / 15.0
+                    </span>
                   ) : (
                     <strong
                       className={
-                        hasUpperInput && scores.upper === 0
+                        scores.upper === 0
                           ? 'text-red-600 dark:text-red-400'
                           : 'text-gray-900 dark:text-white'
                       }
                     >
                       {scores.upper} / 15.0{' '}
-                      {hasUpperInput && scores.upper === 0 && (
+                      {scores.upper === 0 && (
                         <span className="text-xs ml-1">(Fail)</span>
                       )}
                     </strong>
@@ -861,7 +883,7 @@ export default function CalculatorPage() {
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-slate-600/50">
                   <div>
                     <span className="text-gray-600 dark:text-gray-300">Core</span>
-                    {scores.core !== 'Exempt' && age && scores.core === 0 && (
+                    {scores.core !== 'Exempt' && hasCoreInput && age && scores.core === 0 && (
                       <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">
                         Standard: {getComponentMinimum(coreType, gender, age)}
                       </div>
@@ -871,16 +893,20 @@ export default function CalculatorPage() {
                     <span className="text-sm font-semibold text-gray-500 dark:text-slate-400">
                       Exempt
                     </span>
+                  ) : !hasCoreInput ? (
+                    <span className="text-sm font-semibold text-gray-400 dark:text-slate-500">
+                      — / 15.0
+                    </span>
                   ) : (
                     <strong
                       className={
-                        hasCoreInput && scores.core === 0
+                        scores.core === 0
                           ? 'text-red-600 dark:text-red-400'
                           : 'text-gray-900 dark:text-white'
                       }
                     >
                       {scores.core} / 15.0{' '}
-                      {hasCoreInput && scores.core === 0 && (
+                      {scores.core === 0 && (
                         <span className="text-xs ml-1">(Fail)</span>
                       )}
                     </strong>
@@ -891,7 +917,9 @@ export default function CalculatorPage() {
               <div className="text-center mb-6">
                 <h2
                   className={`text-4xl font-extrabold ${
-                    isPass
+                    !isAssessmentComplete
+                      ? 'text-gray-900 dark:text-white'
+                      : isPass
                       ? 'text-green-600 dark:text-green-400'
                       : 'text-red-600 dark:text-red-400'
                   }`}
@@ -903,8 +931,16 @@ export default function CalculatorPage() {
                     Scaled from {scores.earnedPoints} / {scores.possiblePoints}.0 possible points
                   </p>
                 )}
-                <p className="text-sm font-semibold mt-2 text-gray-700 dark:text-gray-300">
-                  {scores.statusText}
+                <p
+                  className={`text-sm font-semibold mt-2 ${
+                    !isAssessmentComplete
+                      ? 'text-gray-500 dark:text-slate-400'
+                      : 'text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {!isAssessmentComplete
+                    ? 'Enter all component scores above to calculate final Pass / Fail status'
+                    : scores.statusText}
                 </p>
               </div>
 
@@ -912,7 +948,9 @@ export default function CalculatorPage() {
                 type="submit"
                 disabled={isSubmitting}
                 className={`w-full py-3.5 px-4 rounded-lg shadow-sm text-base font-bold text-white focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed ${
-                  isPass
+                  !isAssessmentComplete
+                    ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
+                    : isPass
                     ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
                     : 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
                 }`}
