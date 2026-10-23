@@ -6,10 +6,12 @@ import {
   fetchPtScores,
   submitCheckIn,
   toLocalDateKey,
+  parseSheetTimestamp,
   EXCEL_EXPORT_URLS
 } from '../services/api';
 import { RANKS } from '../data/scoringTables';
 import PtlAnalyticsTab from '../components/PtlAnalyticsTab';
+import ExcelExportModal from '../components/ExcelExportModal';
 
 function formatShortDate(dateKey) {
   if (!dateKey) return '';
@@ -51,6 +53,9 @@ export default function PtlDashboard() {
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrTimestamp, setQrTimestamp] = useState(Date.now());
 
+  // Excel Export Modal State ('scores' | 'checkins' | null)
+  const [exportModalType, setExportModalType] = useState(null);
+
   const checkInUrl = `${window.location.origin}/checkin?t=${qrTimestamp}`;
   const validPin = import.meta.env.VITE_PTL_PIN || '391234';
 
@@ -58,6 +63,7 @@ export default function PtlDashboard() {
   useEffect(() => {
     let interval;
     if (showQrModal) {
+      setQrTimestamp(Date.now());
       interval = setInterval(() => {
         setQrTimestamp(Date.now());
       }, 10000);
@@ -194,6 +200,16 @@ export default function PtlDashboard() {
   if (isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-8 transition-colors text-gray-900 dark:text-gray-100">
+        {/* Excel Export Timeframe & Calendar Modal */}
+        <ExcelExportModal
+          isOpen={Boolean(exportModalType)}
+          exportType={exportModalType}
+          allCheckIns={allCheckIns}
+          allScores={allScores}
+          todayKey={todayKey}
+          onClose={() => setExportModalType(null)}
+        />
+
         {/* Dynamic QR Code + Manual Check-In Modal */}
         {showQrModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
@@ -359,18 +375,6 @@ export default function PtlDashboard() {
                 }`}
               >
                 <span>PT Analytics</span>
-                {failCount > 0 ? (
-                  <span
-                    className="px-1.5 py-0.5 text-[11px] rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300 font-extrabold"
-                    title={`${failCount} Failed PT Tests`}
-                  >
-                    {failCount} Fails
-                  </span>
-                ) : (
-                  <span className="px-1.5 py-0.5 text-[11px] rounded-full bg-gray-100 dark:bg-slate-600 text-gray-700 dark:text-slate-200">
-                    {allScores.length}
-                  </span>
-                )}
               </button>
             </div>
           </div>
@@ -569,8 +573,8 @@ export default function PtlDashboard() {
                     </div>
                   ) : (
                     displayedCheckIns.map((item, idx) => {
-                      const dateObj = new Date(item.timestamp);
-                      const timeStr = isNaN(dateObj.getTime())
+                      const dateObj = parseSheetTimestamp(item.timestamp);
+                      const timeStr = !dateObj
                         ? ''
                         : dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -609,22 +613,20 @@ export default function PtlDashboard() {
 
               {/* Two Separate Excel Download Buttons */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                <a
-                  href={EXCEL_EXPORT_URLS.scores}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => setExportModalType('scores')}
                   className="w-full flex justify-center items-center py-2.5 px-4 rounded-xl shadow-xs text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all active:scale-[0.98]"
                 >
                   Download PT Scores (.xlsx)
-                </a>
-                <a
-                  href={EXCEL_EXPORT_URLS.checkins}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExportModalType('checkins')}
                   className="w-full flex justify-center items-center py-2.5 px-4 rounded-xl shadow-xs text-xs font-bold text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all active:scale-[0.98]"
                 >
                   Download Check-Ins (.xlsx)
-                </a>
+                </button>
               </div>
             </div>
           )}
@@ -636,6 +638,7 @@ export default function PtlDashboard() {
               allCheckIns={allCheckIns}
               isLoadingScores={isLoadingScores}
               onRefresh={refreshAllData}
+              onOpenExportModal={(type) => setExportModalType(type)}
             />
           )}
 

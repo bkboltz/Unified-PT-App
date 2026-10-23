@@ -114,7 +114,7 @@ export async function submitScore(scoreData) {
   const payload = {
     type: 'score_submission',
     ...scoreData,
-    timestamp: new Date().toLocaleString()
+    timestamp: new Date().toLocaleString('en-US')
   };
   return postToAppsScript(payload);
 }
@@ -129,28 +129,68 @@ export async function submitCheckIn({ rank, firstName, lastName, method = 'QR Sc
     firstName,
     lastName,
     method,
-    timestamp: new Date().toLocaleString()
+    timestamp: new Date().toLocaleString('en-US')
   };
   return postToAppsScript(payload);
+}
+
+/**
+ * Parses a timestamp from Google Sheets, handling both US locale
+ * ("4/28/2026, 8:24:12 AM") and 24-hour DD/MM/YYYY locales
+ * ("28/04/2026, 08:24:12" or "08/09/2026, 7:30:56").
+ */
+export function parseSheetTimestamp(dateInput) {
+  if (!dateInput) return null;
+  if (dateInput instanceof Date) {
+    return isNaN(dateInput.getTime()) ? null : dateInput;
+  }
+
+  const str = String(dateInput).trim();
+  const slashMatch = str.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?)?/i
+  );
+
+  if (slashMatch) {
+    const first = Number(slashMatch[1]);
+    const second = Number(slashMatch[2]);
+    const year = Number(slashMatch[3]);
+    const hasLeadingZeroFirst =
+      slashMatch[1].length === 2 && slashMatch[1].startsWith('0');
+    const hasAmPm = Boolean(slashMatch[7]);
+    const hasTime = slashMatch[4] !== undefined;
+
+    // Treat as DD/MM/YYYY if first number > 12, or if formatted by a 24h
+    // DD/MM/YYYY locale (leading zero on day + 24h time without AM/PM)
+    const isDayFirst =
+      first > 12 || (second <= 12 && hasLeadingZeroFirst && hasTime && !hasAmPm);
+
+    const month = isDayFirst ? second : first;
+    const day = isDayFirst ? first : second;
+
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      let hours = slashMatch[4] !== undefined ? Number(slashMatch[4]) : 0;
+      const mins = slashMatch[5] !== undefined ? Number(slashMatch[5]) : 0;
+      const secs = slashMatch[6] !== undefined ? Number(slashMatch[6]) : 0;
+      const mer = (slashMatch[7] || '').toUpperCase();
+
+      if (mer === 'PM' && hours < 12) hours += 12;
+      if (mer === 'AM' && hours === 12) hours = 0;
+
+      const dt = new Date(year, month - 1, day, hours, mins, secs);
+      if (!isNaN(dt.getTime())) return dt;
+    }
+  }
+
+  const fallback = new Date(str);
+  return isNaN(fallback.getTime()) ? null : fallback;
 }
 
 /**
  * Formats a Date object or date string as a local YYYY-MM-DD string.
  */
 export function toLocalDateKey(dateInput) {
-  if (!dateInput) return '';
-  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
-  if (isNaN(d.getTime())) {
-    // Fallback for MM/DD/YYYY strings that might have unusual time suffixes
-    const str = String(dateInput).trim();
-    const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (match) {
-      const m = String(match[1]).padStart(2, '0');
-      const day = String(match[2]).padStart(2, '0');
-      return `${match[3]}-${m}-${day}`;
-    }
-    return '';
-  }
+  const d = parseSheetTimestamp(dateInput);
+  if (!d) return '';
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -216,8 +256,9 @@ function normalizeScoreRow(cols, idx) {
   const passFailRaw = String(cols[17] || '').trim();
 
   const dateKey = toLocalDateKey(timestamp);
-  const dateObj = new Date(timestamp);
-  const epochMs = isNaN(dateObj.getTime()) ? 0 : dateObj.getTime();
+  const dateObj = parseSheetTimestamp(timestamp);
+  const epochMs = !dateObj ? 0 : dateObj.getTime();
+  const isWalk = cardioType.toLowerCase().includes('walk');
 
   let status = 'Pass';
   if (
@@ -238,7 +279,7 @@ function normalizeScoreRow(cols, idx) {
     tier = 'Exempt';
   } else if (status === 'Fail') {
     tier = 'Fail';
-  } else if (totalScore !== null && totalScore >= 90) {
+  } else if (!isWalk && totalScore !== null && totalScore >= 90) {
     tier = 'Excellent';
   } else {
     tier = 'Satisfactory';
@@ -246,7 +287,6 @@ function normalizeScoreRow(cols, idx) {
 
   // Diagnostic failure / point-loss reasons
   const failureReasons = [];
-  const isWalk = cardioType.toLowerCase().includes('walk');
 
   if (!cardioExempt && !isWalk && cardioPts === 0) {
     failureReasons.push(
@@ -266,10 +306,6 @@ function normalizeScoreRow(cols, idx) {
     failureReasons.push(
       `Core Min Failed (${coreType}${coreInput ? `: ${coreInput}` : ''})`
     );
-  }
-
-  if (!whtrExempt && whtrPts === 0) {
-    failureReasons.push('Body Comp: 0/20 pts (WHtR ≥ 0.60)');
   }
 
   if (status === 'Fail' && totalScore !== null && totalScore < 75) {
@@ -341,6 +377,8 @@ function normalizeScoreRow(cols, idx) {
     cardioInput,
     cardioPts,
     cardioExempt,
+    isWalk,
+    walkPassed: isWalk ? !cardioRaw.toLowerCase().includes('fail') : null,
     upperType,
     upperInput,
     upperPts,

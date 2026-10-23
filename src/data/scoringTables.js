@@ -1078,7 +1078,7 @@ export const pushupsTable = {
             f: 15
         }, {
             p: 3,
-            m: 26,
+            m: 28,
             f: 14
         }, {
             p: 2.5,

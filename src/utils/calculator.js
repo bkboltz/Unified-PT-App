@@ -41,6 +41,10 @@ export function timeToSeconds(timeStr, fallback = 9999) {
   if (!timeStr || typeof timeStr !== 'string') return fallback;
   const s = timeStr.replace(/>|=|<|\*/g, '').trim();
   if (!s.includes(':')) {
+    if (fallback === 0 && /^\d{1,2}$/.test(s)) {
+      const onlySecs = Number(s);
+      if (onlySecs >= 0 && onlySecs < 60) return onlySecs;
+    }
     return fallback;
   }
   const [minsStr, secsStr] = s.split(':');
@@ -55,6 +59,9 @@ export function timeToSeconds(timeStr, fallback = 9999) {
  * Formats user input into M:SS (3 digits) or MM:SS (4 digits) automatically as they type digits.
  */
 export function formatTimeInput(val) {
+  if (typeof val === 'string' && /^:\d{1,2}$/.test(val.trim())) {
+    return `0${val.trim()}`;
+  }
   const digits = val.replace(/\D/g, '').slice(0, 4);
   if (digits.length === 3) {
     return `${digits[0]}:${digits.slice(1)}`;

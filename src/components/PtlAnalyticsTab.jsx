@@ -451,7 +451,8 @@ export default function PtlAnalyticsTab({
   allScores = [],
   allCheckIns = [],
   isLoadingScores = false,
-  onRefresh
+  onRefresh,
+  onOpenExportModal
 }) {
   // Top-level filters
   const [dateFilter, setDateFilter] = useState('all'); // 'all' | '30d' | '90d' | specific YYYY-MM-DD
@@ -820,17 +821,6 @@ export default function PtlAnalyticsTab({
             }`}
           >
             <span>Failures &amp; Log</span>
-            {metrics.fail > 0 && (
-              <span
-                className={`px-1.5 py-0.2 text-[10px] rounded-full font-extrabold ${
-                  subView === 'failures'
-                    ? 'bg-white text-red-600'
-                    : 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400'
-                }`}
-              >
-                {metrics.fail}
-              </span>
-            )}
           </button>
         </div>
       </div>
@@ -1261,7 +1251,8 @@ export default function PtlAnalyticsTab({
 
                         <div
                           className={`p-1.5 rounded-lg text-center border ${
-                            !item.cardioExempt && item.cardioPts === 0
+                            !item.cardioExempt &&
+                            (item.cardioPts === 0 || (item.isWalk && !item.walkPassed))
                               ? 'bg-red-50/70 dark:bg-red-900/20 border-red-200 dark:border-red-800'
                               : 'bg-gray-50 dark:bg-slate-700/40 border-gray-100 dark:border-slate-700'
                           }`}
@@ -1270,7 +1261,13 @@ export default function PtlAnalyticsTab({
                             {item.cardioType.replace('2-Mile ', '')}
                           </div>
                           <div className="text-xs font-bold text-gray-800 dark:text-slate-200">
-                            {item.cardioExempt ? 'Ex' : `${item.cardioPts ?? 0}/50`}
+                            {item.cardioExempt
+                              ? 'Ex'
+                              : item.isWalk
+                              ? item.walkPassed
+                                ? 'Pass'
+                                : 'Fail'
+                              : `${item.cardioPts ?? 0}/50`}
                           </div>
                         </div>
 
@@ -1319,7 +1316,9 @@ export default function PtlAnalyticsTab({
                           <div>
                             <span className="text-gray-400 block">Strength Raw:</span>
                             <span className="font-semibold text-gray-800 dark:text-slate-200">
-                              {item.upperType}: {item.upperInput || 'N/A'} reps
+                              {item.upperExempt
+                                ? 'Exempt'
+                                : `${item.upperType}: ${item.upperInput || 'N/A'} reps`}
                             </span>
                           </div>
                           <div>
@@ -1370,22 +1369,20 @@ export default function PtlAnalyticsTab({
 
       {/* Spreadsheet Download Links Footer */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-        <a
-          href={EXCEL_EXPORT_URLS.scores}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="w-full flex justify-center items-center py-2.5 px-4 rounded-xl shadow-xs text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all"
+        <button
+          type="button"
+          onClick={() => onOpenExportModal && onOpenExportModal('scores')}
+          className="w-full flex justify-center items-center py-2.5 px-4 rounded-xl shadow-xs text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all active:scale-[0.98]"
         >
           Download PT Scores (.xlsx)
-        </a>
-        <a
-          href={EXCEL_EXPORT_URLS.checkins}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="w-full flex justify-center items-center py-2.5 px-4 rounded-xl shadow-xs text-xs font-bold text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all"
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpenExportModal && onOpenExportModal('checkins')}
+          className="w-full flex justify-center items-center py-2.5 px-4 rounded-xl shadow-xs text-xs font-bold text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all active:scale-[0.98]"
         >
           Download Check-Ins (.xlsx)
-        </a>
+        </button>
       </div>
     </div>
   );

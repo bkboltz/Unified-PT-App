@@ -90,7 +90,9 @@ export default function CalculatorPage() {
   const hasCoreInput =
     !exemptions.core &&
     coreInput.toString().trim() !== '' &&
-    (coreType !== 'plank' || coreInput.includes(':'));
+    (coreType !== 'plank' ||
+      coreInput.includes(':') ||
+      /^\d{2}$/.test(coreInput.toString().trim()));
 
   const scores = useMemo(() => {
     const whtrDetails = exemptions.whtr
