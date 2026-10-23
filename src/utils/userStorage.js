@@ -7,8 +7,10 @@ const DEFAULT_PROFILE = {
   lastName: '',
   gender: 'male',
   age: '',
+  heightMode: 'ft_in',
   heightFeet: '',
-  heightInches: ''
+  heightInches: '',
+  heightTotalInches: ''
 };
 
 function readCookie(name) {

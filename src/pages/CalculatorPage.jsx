@@ -22,9 +22,14 @@ export default function CalculatorPage() {
   const [lastName, setLastName] = useState(savedProfile.lastName || '');
   const [gender, setGender] = useState(savedProfile.gender || 'male');
   const [age, setAge] = useState(savedProfile.age || '');
+  const [heightMode, setHeightMode] = useState(savedProfile.heightMode || 'ft_in');
   const [heightFeet, setHeightFeet] = useState(savedProfile.heightFeet || '');
   const [heightInches, setHeightInches] = useState(savedProfile.heightInches || '');
+  const [heightTotalInches, setHeightTotalInches] = useState(
+    savedProfile.heightTotalInches || ''
+  );
   const [waist, setWaist] = useState('');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   useEffect(() => {
     saveMemberProfile({
@@ -33,10 +38,22 @@ export default function CalculatorPage() {
       lastName,
       gender,
       age,
+      heightMode,
       heightFeet,
-      heightInches
+      heightInches,
+      heightTotalInches
     });
-  }, [rank, firstName, lastName, gender, age, heightFeet, heightInches]);
+  }, [
+    rank,
+    firstName,
+    lastName,
+    gender,
+    age,
+    heightMode,
+    heightFeet,
+    heightInches,
+    heightTotalInches
+  ]);
 
   const [cardioType, setCardioType] = useState('run');
   const [cardioInput, setCardioInput] = useState('');
@@ -79,7 +96,54 @@ export default function CalculatorPage() {
     }
   };
 
-  const totalHeight = parseInt(heightFeet || 0, 10) * 12 + parseFloat(heightInches || 0);
+  const handleHeightModeChange = (nextMode) => {
+    if (nextMode === heightMode) return;
+    if (nextMode === 'in') {
+      const combined = parseInt(heightFeet || 0, 10) * 12 + parseFloat(heightInches || 0);
+      if (combined > 0 && !heightTotalInches) {
+        setHeightTotalInches(String(Number(combined.toFixed(2))));
+      }
+    } else {
+      const totalIn = parseFloat(heightTotalInches || 0);
+      if (totalIn > 0 && !heightFeet && !heightInches) {
+        const ft = Math.floor(totalIn / 12);
+        const remIn = Number((totalIn - ft * 12).toFixed(2));
+        setHeightFeet(String(ft));
+        setHeightInches(remIn > 0 ? String(remIn) : '0');
+      }
+    }
+    setHeightMode(nextMode);
+  };
+
+  const handleConfirmClearForm = () => {
+    setRank('');
+    setFirstName('');
+    setLastName('');
+    setGender('male');
+    setAge('');
+    setHeightFeet('');
+    setHeightInches('');
+    setHeightTotalInches('');
+    setWaist('');
+    setCardioType('run');
+    setCardioInput('');
+    setUpperType('pushups');
+    setUpperInput('');
+    setCoreType('situps');
+    setCoreInput('');
+    setExemptions({
+      whtr: false,
+      cardio: false,
+      upper: false,
+      core: false
+    });
+    setShowClearConfirm(false);
+  };
+
+  const totalHeight =
+    heightMode === 'in'
+      ? parseFloat(heightTotalInches || 0)
+      : parseInt(heightFeet || 0, 10) * 12 + parseFloat(heightInches || 0);
   const waistInches = parseFloat(waist || 0);
   const hasWhtrInput = !exemptions.whtr && totalHeight > 0 && waistInches > 0;
   const hasCardioInput =
@@ -336,45 +400,106 @@ export default function CalculatorPage() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    <div>
-                      <label className={labelStyle}>Height (Feet)</label>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={heightFeet}
-                        onChange={(e) => setHeightFeet(e.target.value)}
-                        placeholder="e.g. 5"
-                        className={inputStyle}
-                        required={!exemptions.whtr}
-                      />
-                    </div>
-                    <div>
-                      <label className={labelStyle}>Inches</label>
-                      <input
-                        type="number"
-                        step="any"
-                        inputMode="decimal"
-                        value={heightInches}
-                        onChange={(e) => setHeightInches(e.target.value)}
-                        placeholder="e.g. 10"
-                        className={inputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label className={labelStyle}>Waist (inches)</label>
-                      <input
-                        type="number"
-                        step="any"
-                        inputMode="decimal"
-                        value={waist}
-                        onChange={(e) => setWaist(e.target.value)}
-                        placeholder="e.g. 34"
-                        className={inputStyle}
-                        required={!exemptions.whtr}
-                      />
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <span className="text-xs font-medium text-gray-500 dark:text-slate-400">
+                      Height Input Format
+                    </span>
+                    <div className="inline-flex rounded-lg p-0.5 bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-600">
+                      <button
+                        type="button"
+                        onClick={() => handleHeightModeChange('ft_in')}
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                          heightMode === 'ft_in'
+                            ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                            : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white'
+                        }`}
+                      >
+                        Feet + Inches
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleHeightModeChange('in')}
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                          heightMode === 'in'
+                            ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                            : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white'
+                        }`}
+                      >
+                        Inches Only
+                      </button>
                     </div>
                   </div>
+
+                  {heightMode === 'ft_in' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      <div>
+                        <label className={labelStyle}>Height (Feet)</label>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={heightFeet}
+                          onChange={(e) => setHeightFeet(e.target.value)}
+                          placeholder="e.g. 5"
+                          className={inputStyle}
+                          required={!exemptions.whtr}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelStyle}>Inches</label>
+                        <input
+                          type="number"
+                          step="any"
+                          inputMode="decimal"
+                          value={heightInches}
+                          onChange={(e) => setHeightInches(e.target.value)}
+                          placeholder="e.g. 10"
+                          className={inputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelStyle}>Waist (inches)</label>
+                        <input
+                          type="number"
+                          step="any"
+                          inputMode="decimal"
+                          value={waist}
+                          onChange={(e) => setWaist(e.target.value)}
+                          placeholder="e.g. 34"
+                          className={inputStyle}
+                          required={!exemptions.whtr}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div>
+                        <label className={labelStyle}>Height (Total Inches)</label>
+                        <input
+                          type="number"
+                          step="any"
+                          inputMode="decimal"
+                          value={heightTotalInches}
+                          onChange={(e) => setHeightTotalInches(e.target.value)}
+                          placeholder="e.g. 70"
+                          className={inputStyle}
+                          required={!exemptions.whtr}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelStyle}>Waist (inches)</label>
+                        <input
+                          type="number"
+                          step="any"
+                          inputMode="decimal"
+                          value={waist}
+                          onChange={(e) => setWaist(e.target.value)}
+                          placeholder="e.g. 34"
+                          className={inputStyle}
+                          required={!exemptions.whtr}
+                        />
+                      </div>
+                    </div>
+                  )}
                   {hasWhtrInput && scores.whtrRatio && (
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-blue-50/70 dark:bg-slate-700/60 border border-blue-100 dark:border-slate-600 text-xs text-gray-700 dark:text-slate-300">
                       <div>
@@ -795,8 +920,51 @@ export default function CalculatorPage() {
                 {isSubmitting ? 'Submitting...' : 'Submit to PTL'}
               </button>
             </div>
+
+            <div className="pt-2 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-xs font-semibold text-gray-600 dark:text-slate-300 transition-colors"
+              >
+                Clear Form
+              </button>
+            </div>
           </form>
         </div>
+
+        {/* Clear Form Confirmation Modal */}
+        {showClearConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-6 border border-gray-200 dark:border-slate-700 text-center space-y-4">
+              <div className="w-12 h-12 mx-auto rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl font-bold">
+                !
+              </div>
+              <h3 className="text-base sm:text-lg font-extrabold text-gray-900 dark:text-white tracking-wide">
+                ARE YOU SURE YOU WANT TO CLEAR FORM?
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-slate-400">
+                This will clear all entered member details, measurements, and fitness scores without submitting.
+              </p>
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(false)}
+                  className="py-2.5 px-4 rounded-xl border border-gray-300 dark:border-slate-600 text-xs font-bold text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmClearForm}
+                  className="py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-xs font-bold text-white shadow-sm transition-colors"
+                >
+                  Yes, Clear Form
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="bg-gray-50 dark:bg-slate-800/80 px-8 py-4 border-t border-gray-100 dark:border-slate-700 text-center space-y-2">
           <div>
